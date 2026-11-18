@@ -39,6 +39,9 @@ echo BUILD OK: %OUT%
 endlocal
 exit /b 0
 :fail
+rem 失敗時把日誌印到主控台，CI 才看得到 selftest 的錯誤原因
+for %%F in ("..\logs\crash.log" "..\logs\runtime_errors.log") do if exist %%F (echo ===== %%~nxF ===== & type %%F)
+for %%F in ("..\logs\operations_*.log") do (echo ===== %%~nxF ===== & type "%%~fF")
 echo BUILD FAILED
 endlocal
 exit /b 1
