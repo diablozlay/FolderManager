@@ -39,4 +39,4 @@ for s, d in frames:
     ent += struct.pack('<BBBBHHII', w, w, 0, 0, 1, 32, len(d), off); off += len(d); blobs += d
 out = os.path.join(D, 'app.ico')
 open(out, 'wb').write(head + ent + blobs)
-print('wrote', out, os.path.getsize(out), 'bytes')
+print('ICO build success, size:', os.path.getsize(out), 'bytes')
