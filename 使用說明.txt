@@ -86,8 +86,8 @@ English version: Readme_English.txt
        Français    fr_FR        Español     es_ES        Italiano    it_IT
        Português   pt_PT        Русский     ru_RU        Polski      pl_PL
        Čeština     cs_CZ        Magyar      hu_HU        Türkçe      tr_TR
-     繁中、簡中、英文為完整翻譯；其他語言已翻譯主要按鈕與選單，
-     尚未翻譯的說明文字會以英文顯示。
+     15 種語言皆為完整翻譯：按鈕、選單、提示、狀態列、確認視窗與各對話框標題都會跟著切換
+     （操作日誌固定以英文記錄，繁中／簡中介面除外，方便回報問題）。
      每種語言會自動套用合適的字型（例如日文 Yu Gothic UI、韓文 Malgun Gothic），
      視窗標題也會換成該語言的程式名稱（例如英文 ZW3D Junk File Cleaner、
      日文 ZW3D 不要ファイル削除ツール）。

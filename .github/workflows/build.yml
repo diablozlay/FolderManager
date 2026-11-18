@@ -1,5 +1,7 @@
 name: build
 
+# v1.6.0 起改為腳本版發佈（.cmd + .ps1，不含 exe）：
+# 以 Windows PowerShell 5.1 跑 -SelfTest → 打包 zip → 推 tag（v*）時建立 Release。
 on:
   push:
     branches: [main]
@@ -16,49 +18,62 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Selftest (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          $ps1 = 'src\FileManager.ps1'
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File $ps1 -SelfTest
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Get-ChildItem 'src\logs\*.log' -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "===== $($_.Name) ====="
+              Get-Content -LiteralPath $_.FullName -Encoding UTF8
+            }
+            throw "selftest failed (exit $code)"
+          }
 
-      - name: Install Pillow
-        run: pip install pillow
+      - name: Package
+        shell: pwsh
+        run: |
+          $m = Select-String -Path src/FileManager.ps1 -Pattern "AppVersion = '(\d+\.\d+\.\d+)'"
+          $ver = $m.Matches[0].Groups[1].Value
+          $app = 'zw3d_無用檔案清除程式'
+          $dir = "dist/${app}_v$ver"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          Copy-Item "src/$app.cmd" "$dir/$app.cmd"
+          Copy-Item 'src/FileManager.ps1' "$dir/$app.ps1"
+          Copy-Item '圖示/app.ico' "$dir/app.ico"
+          Copy-Item '使用說明.txt', 'Readme_English.txt' $dir
+          "DIR=$dir" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "VER=$ver" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "APP=$app" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
 
-      - name: Build exe (icon + csc + selftest)
-        shell: cmd
-        run: src\build.cmd
-
-      - name: Sign exe (only if certificate secrets exist)
+      - name: Sign script (only if certificate secrets exist)
         shell: pwsh
         env:
           PFX_B64: ${{ secrets.CODESIGN_PFX_BASE64 }}
           PFX_PWD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
         run: |
           if ([string]::IsNullOrEmpty($env:PFX_B64)) {
-            Write-Host '::notice::No signing certificate configured (secrets CODESIGN_PFX_BASE64 / CODESIGN_PFX_PASSWORD); exe is left unsigned.'
+            Write-Host '::notice::No signing certificate configured (secrets CODESIGN_PFX_BASE64 / CODESIGN_PFX_PASSWORD); script is left unsigned.'
             exit 0
           }
           $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_B64))
-          try { & ./src/signing/sign.ps1 -Exe ./檔案管理工具.exe -Pfx $pfx -Password $env:PFX_PWD }
+          try { & ./src/signing/sign.ps1 -Exe "$env:DIR/$env:APP.ps1" -Pfx $pfx -Password $env:PFX_PWD }
           finally { Remove-Item $pfx -Force -ErrorAction SilentlyContinue }
 
-      - name: Package
+      - name: Zip
         shell: pwsh
         run: |
-          $m = Select-String -Path src/Program.cs -Pattern 'AssemblyVersion\("(\d+\.\d+\.\d+)'
-          $ver = $m.Matches[0].Groups[1].Value
-          $name = "FolderManager-v$ver-win64"
-          New-Item -ItemType Directory -Path "dist/$name" -Force | Out-Null
-          Copy-Item "檔案管理工具.exe","使用說明.txt","版本資訊.txt","建置與部署說明.txt" "dist/$name"
-          Copy-Item "圖示" "dist/$name/圖示" -Recurse
-          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
-          $h = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash
-          "$h  $name.zip" | Set-Content "dist/$name.zip.sha256" -Encoding ascii
-          "PKG=$name" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          $zip = "$env:DIR.zip"
+          Compress-Archive -Path $env:DIR -DestinationPath $zip
+          $h = (Get-FileHash $zip -Algorithm SHA256).Hash
+          "$h  $(Split-Path $zip -Leaf)" | Set-Content "$zip.sha256" -Encoding utf8
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.PKG }}
+          name: zw3d-junk-cleaner-v${{ env.VER }}
           path: |
             dist/*.zip
             dist/*.sha256

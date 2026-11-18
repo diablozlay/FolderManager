@@ -1,6 +1,7 @@
 ﻿#requires -Version 5.1
 <#
-    檔案管理工具 Folder Manager
+    ZW3D 無用檔案清除程式（zw3d_無用檔案清除程式）  v1.6.0
+    原名：檔案管理工具 Folder Manager
     - 列出所有可用磁碟機（可多選）
     - 依關鍵字掃描資料夾（可選檔案），支援深度限制與中斷
     - 「立即停止」按鈕 / Ctrl+Q：隨時中止所有作業並結束程式
@@ -12,12 +13,49 @@
 
 param([switch]$SelfTest, [switch]$Perf)
 $script:PerfMode = [bool]$Perf
+$script:AppVersion = '1.6.0'          # 版本號（視窗標題與日誌會顯示）
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $script:RecycleOk = $true
 try { Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction Stop } catch { $script:RecycleOk = $false }
 [System.Windows.Forms.Application]::EnableVisualStyles()
+
+# ---------------------------------------------------------------- 單一執行個體 + 啟動畫面
+# 已在執行時再點一次啟動檔：通知既有視窗跳到最前面，自己直接結束（不會開出第二個、也不會「點了沒反應」）
+$script:ShowEvent = $null
+$script:Splash = $null
+if (-not $SelfTest -and -not $Perf) {
+    $createdNew = $false
+    $script:InstanceMutex = [System.Threading.Mutex]::new($true, 'Local\FolderManager.Instance', [ref]$createdNew)
+    if (-not $createdNew) {
+        try { [void][System.Threading.EventWaitHandle]::OpenExisting('Local\FolderManager.Show').Set() } catch { }
+        exit 0
+    }
+    $script:ShowEvent = [System.Threading.EventWaitHandle]::new($false, [System.Threading.EventResetMode]::AutoReset, 'Local\FolderManager.Show')
+
+    # 主控台是隱藏的，載入介面需要幾秒；先立刻顯示啟動畫面，讓使用者知道程式已在開啟
+    try {
+        $script:Splash = New-Object System.Windows.Forms.Form
+        $script:Splash.FormBorderStyle = 'None'
+        $script:Splash.StartPosition = 'CenterScreen'
+        $script:Splash.Size = New-Object System.Drawing.Size(380, 96)
+        $script:Splash.BackColor = [System.Drawing.Color]::FromArgb(24, 30, 52)
+        $script:Splash.ShowInTaskbar = $false
+        $script:Splash.TopMost = $true
+        $splashLbl = New-Object System.Windows.Forms.Label
+        $splashLbl.Dock = 'Fill'
+        $splashLbl.TextAlign = 'MiddleCenter'
+        $splashLbl.ForeColor = [System.Drawing.Color]::White
+        $splashLbl.Font = New-Object System.Drawing.Font('Microsoft JhengHei UI', 12)
+        $splashLbl.Text = "ZW3D 無用檔案清除程式  v$script:AppVersion`r`nZW3D Junk File Cleaner · 啟動中… Starting…"
+        $script:Splash.Controls.Add($splashLbl)
+        $script:Splash.Show()
+        $script:Splash.Activate()
+        $script:Splash.Refresh()
+        [System.Windows.Forms.Application]::DoEvents()
+    } catch { $script:Splash = $null }
+}
 
 # ---------------------------------------------------------------- 日誌
 # 可攜性：優先使用啟動器傳入的 FM_BASEDIR（.exe 所在資料夾），
@@ -77,7 +115,7 @@ $script:IconButtons = New-Object System.Collections.ArrayList
 # 詞條表：以 key 為主鍵。未提供的語言依序回退 en_US → zh_TW。
 # 繁中為原版文案；簡中／英文完整；其餘語言提供主要按鈕與短標籤，長提示回退英文。
 $script:Str = @{
- 'AppTitle'      = @{ zh_TW='檔案管理工具 · Folder Manager'; zh_CN='文件管理工具 · Folder Manager'; en_US='Folder Manager · ZW3D Files'; de_DE='Dateiverwaltung · ZW3D'; fr_FR='Gestionnaire de fichiers · ZW3D'; es_ES='Gestor de archivos · ZW3D'; it_IT='Gestione file · ZW3D'; pt_PT='Gestor de ficheiros · ZW3D'; ja_JP='ファイル管理ツール · ZW3D'; ko_KR='파일 관리자 · ZW3D'; ru_RU='Менеджер файлов · ZW3D'; pl_PL='Menedżer plików · ZW3D'; cs_CZ='Správce souborů · ZW3D'; hu_HU='Fájlkezelő · ZW3D'; tr_TR='Dosya Yöneticisi · ZW3D' }
+ 'AppTitle'      = @{ zh_TW='ZW3D 無用檔案清除程式'; zh_CN='ZW3D 无用文件清除程序'; en_US='ZW3D Junk File Cleaner'; de_DE='ZW3D Bereinigung unnötiger Dateien'; fr_FR='ZW3D Nettoyeur de fichiers inutiles'; es_ES='ZW3D Limpiador de archivos innecesarios'; it_IT='ZW3D Pulizia file inutili'; pt_PT='ZW3D Limpeza de ficheiros inúteis'; ja_JP='ZW3D 不要ファイル削除ツール'; ko_KR='ZW3D 불필요한 파일 정리 도구'; ru_RU='ZW3D Очистка ненужных файлов'; pl_PL='ZW3D Czyszczenie zbędnych plików'; cs_CZ='ZW3D Čištění nepotřebných souborů'; hu_HU='ZW3D Felesleges fájlok törlése'; tr_TR='ZW3D Gereksiz Dosya Temizleyici' }
  'KwLabel'       = @{ zh_TW='檔名／資料夾名稱關鍵字'; zh_CN='文件名／文件夹名关键字'; en_US='File / folder name keyword'; de_DE='Datei- / Ordnername'; fr_FR='Mot-clé (fichier / dossier)'; es_ES='Palabra clave (archivo / carpeta)'; it_IT='Parola chiave (file / cartella)'; pt_PT='Palavra-chave (ficheiro / pasta)'; ja_JP='ファイル／フォルダー名'; ko_KR='파일/폴더 이름 키워드'; ru_RU='Ключевое слово (файл / папка)'; pl_PL='Słowo kluczowe (plik / folder)'; cs_CZ='Klíčové slovo (soubor / složka)'; hu_HU='Kulcsszó (fájl / mappa)'; tr_TR='Anahtar kelime (dosya / klasör)' }
  'PresetLabel'   = @{ zh_TW='常用'; zh_CN='常用'; en_US='Preset'; de_DE='Vorlage'; fr_FR='Favoris'; es_ES='Frecuentes'; it_IT='Predefiniti'; pt_PT='Predefinições'; ja_JP='よく使う'; ko_KR='자주 쓰는'; ru_RU='Шаблон'; pl_PL='Szablon'; cs_CZ='Šablona'; hu_HU='Sablon'; tr_TR='Hazır' }
  'TargetLabel'   = @{ zh_TW='搜尋對象'; zh_CN='搜索对象'; en_US='Search for'; de_DE='Suchen nach'; fr_FR='Rechercher'; es_ES='Buscar'; it_IT='Cerca'; pt_PT='Pesquisar'; ja_JP='検索対象'; ko_KR='검색 대상'; ru_RU='Искать'; pl_PL='Szukaj'; cs_CZ='Hledat'; hu_HU='Keresés'; tr_TR='Ara' }
@@ -141,7 +179,7 @@ $script:Str = @{
  'Drive.Available'= @{ zh_TW='({0} / {1} GB 可用)'; zh_CN='({0} / {1} GB 可用)'; en_US='({0} / {1} GB free)' }
  'Log.IconFail'  = @{ zh_TW='App 圖示建立失敗：{0}'; zh_CN='App 图标创建失败：{0}'; en_US='Failed to create app icon: {0}' }
  'Log.Drives'    = @{ zh_TW='磁碟機列舉完成，共 {0} 台'; zh_CN='磁盘枚举完成，共 {0} 台'; en_US='Drive enumeration done: {0}' }
- 'Log.Start'     = @{ zh_TW='========== 檔案管理工具啟動 =========='; zh_CN='========== 文件管理工具启动 =========='; en_US='========== Folder Manager started ==========' }
+ 'Log.Start'     = @{ zh_TW='========== ZW3D 無用檔案清除程式 啟動 =========='; zh_CN='========== ZW3D 无用文件清除程序 启动 =========='; en_US='========== ZW3D Junk File Cleaner started ==========' }
  'Log.Close'     = @{ zh_TW='程式關閉'; zh_CN='程序关闭'; en_US='Application closed' }
  'Log.SearchThreadErr'= @{ zh_TW='搜尋執行緒異常：{0}'; zh_CN='搜索线程异常：{0}'; en_US='Search thread error: {0}' }
  'Log.SearchStart'= @{ zh_TW='開始搜尋：磁碟=[{0}] 關鍵字="{1}" 對象={2} 深度={3} ZW3D篩選={4} 副檔名={5} 掃描語言版本={6}'; zh_CN='开始搜索：磁盘=[{0}] 关键字="{1}" 对象={2} 深度={3} ZW3D筛选={4} 扩展名={5} 扫描语言版本={6}'; en_US='Search started: drives=[{0}] keyword="{1}" target={2} depth={3} ZW3D filter={4} ext={5} scanLang={6}' }
@@ -1872,7 +1910,7 @@ function New-RibbonSeparator {
 
 # ---------------------------------------------------------------- 主視窗
 $form = New-Object System.Windows.Forms.Form
-$form.Text = L 'AppTitle'
+$form.Text = (L 'AppTitle') + '  v' + $script:AppVersion
 $form.Size = New-Object System.Drawing.Size(1340, 880)
 $form.MinimumSize = New-Object System.Drawing.Size(1200, 760)
 $form.StartPosition = 'CenterScreen'
@@ -1881,9 +1919,16 @@ $form.ForeColor = $C_TEXT
 $form.Font = $FONT_UI
 $form.KeyPreview = $true
 
-# App 圖示（取自 exe 內嵌 app.ico）：標題列、工作列、Alt+Tab 都吃這顆
+# App 圖示：exe 模式取 exe 內嵌 app.ico；.ps1 模式（由 powershell.exe 執行）改讀旁邊的 app.ico
 try {
-    $form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName)
+    $hostExe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+    $icoFile = @((Join-Path $script:BaseDir 'app.ico'), (Join-Path $script:BaseDir '圖示\app.ico')) |
+        Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if ($icoFile -and ([System.IO.Path]::GetFileName($hostExe) -match '^(powershell|pwsh)')) {
+        $form.Icon = New-Object System.Drawing.Icon($icoFile)
+    } else {
+        $form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($hostExe)
+    }
 } catch { Write-Log 'WARN' ((L 'Log.IconFail') -f $_.Exception.Message) }
 
 # ---------- 結果清單（先加，Dock Fill）
@@ -2342,8 +2387,334 @@ $script:Deleting = $false   # 刪除迴圈進行中（UI 執行緒），此時�
 $script:LastExt = ''
 $script:LastZw = 0
 
+# ---------------------------------------------------------------- 高速掃描核心（C#）
+# 搜尋改由編譯後的 C# 執行：多執行緒、每個資料夾只讀一次（Win32 FindFirstFileEx + Large Fetch）。
+# 比對規則與下方 PowerShell 版完全相同；若本機無法編譯（例如受限語言模式／原則封鎖），自動退回 PowerShell 版。
+$script:FastScanSrc = @'
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
+using System.Threading;
+
+namespace FolderManager
+{
+    public sealed class ScanHit
+    {
+        public string Name { get; set; }
+        public string Path { get; set; }
+        public string Type { get; set; }
+        public string Parent { get; set; }
+    }
+
+    // 多執行緒目錄掃描：一個目錄只讀一次（同時取得子資料夾與檔案），比對規則與舊版 PowerShell 掃描完全相同。
+    public static class FastScan
+    {
+        // 只用 mscorlib / System.dll 的型別（Windows PowerShell 5.1 的 Add-Type 預設不參考 System.Core）
+        static readonly Dictionary<string, bool> Junk = Set(
+            ".z3bak", ".z3gr", ".orig", ".cfg", ".log", ".stl", ".lim", ".ptss", ".job", ".tls",
+            ".wkp", ".projector", ".offsetrep", ".vxbcl", ".info", ".xml", ".bmp");
+        static readonly Dictionary<string, bool> Model = Set(
+            ".z3", ".z3prt", ".z3asm", ".z3drw", ".z3sht", ".z3fnt", ".z3cvx");
+        static Dictionary<string, bool> Set(params string[] items)
+        {
+            var d = new Dictionary<string, bool>(StringComparer.Ordinal);
+            foreach (string i in items) d[i] = true;
+            return d;
+        }
+        static readonly string[] NameKeys = { "zw3d", "topologicrep", "proxy", "analyticalrep", "z3_a7880" };
+
+        sealed class Work { public string Dir; public int Depth; public Work(string d, int n) { Dir = d; Depth = n; } }
+
+        sealed class Ctx
+        {
+            public string Kw; public bool HasKw; public string Ext; public bool HasExt;
+            public bool WantDir; public bool WantFile; public int MaxResults; public int MaxDepth; public int Mode;
+            public Regex Lang; public string TypeFile; public string TypeDir; public Hashtable State;
+            public ArrayList Results; public readonly object Gate = new object();
+            public readonly Stack<Work> Stack = new Stack<Work>();
+            public int Active; public volatile bool Stop; public volatile bool Cancelled;
+            public long Scanned; public int Errors; public int LastReport;
+        }
+
+        public static void Run(object[] roots, string keyword, int targetIndex, int maxResults, int maxDepth,
+                               int zwMode, string extFilter, Hashtable state, object[] langWords,
+                               string typeFile, string typeDir)
+        {
+            var c = new Ctx();
+            c.Kw = keyword ?? ""; c.HasKw = c.Kw.Length > 0;
+            c.Ext = extFilter ?? ""; c.HasExt = c.Ext.Length > 0;
+            c.WantDir = targetIndex != 1; c.WantFile = targetIndex != 0;
+            c.MaxResults = maxResults; c.MaxDepth = maxDepth; c.Mode = zwMode;
+            c.TypeFile = typeFile; c.TypeDir = typeDir; c.State = state;
+            c.Results = new ArrayList();
+            state["Results"] = c.Results;       // 進度列可即時顯示命中數
+
+            if (langWords != null && langWords.Length > 0)
+            {
+                var parts = new List<string>();
+                foreach (object w in langWords) if (w != null) parts.Add(Regex.Escape(w.ToString()));
+                if (parts.Count > 0) c.Lang = new Regex(string.Join("|", parts.ToArray()), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            }
+
+            if (roots != null)
+                for (int i = roots.Length - 1; i >= 0; i--)
+                    if (roots[i] != null) c.Stack.Push(new Work(roots[i].ToString(), 0));
+
+            int n = Math.Max(2, Math.Min(Environment.ProcessorCount, 8));
+            var threads = new Thread[n];
+            for (int i = 0; i < n; i++)
+            {
+                threads[i] = new Thread(() => Worker(c));
+                threads[i].IsBackground = true;
+                threads[i].Start();
+            }
+            foreach (var t in threads) t.Join();
+
+            lock (c.Gate)
+            {
+                // 多執行緒找到的順序不固定 → 依路徑排序，結果清單穩定好讀
+                c.Results.Sort(new PathComparer());
+            }
+            state["Scanned"] = (int)Interlocked.Read(ref c.Scanned);
+            state["Errors"] = c.Errors;
+            if (c.Cancelled) state["Cancel"] = true;
+        }
+
+        sealed class PathComparer : IComparer
+        {
+            public int Compare(object x, object y)
+            {
+                return string.Compare(((ScanHit)x).Path, ((ScanHit)y).Path, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        static void Worker(Ctx c)
+        {
+            var subs = new List<string>();
+            while (true)
+            {
+                Work w;
+                lock (c.Gate)
+                {
+                    while (c.Stack.Count == 0 && c.Active > 0 && !c.Stop) Monitor.Wait(c.Gate);
+                    if (c.Stack.Count == 0 || c.Stop) { Monitor.PulseAll(c.Gate); return; }
+                    w = c.Stack.Pop();
+                    c.Active++;
+                }
+
+                subs.Clear();
+                try { ScanDir(c, w, subs); }
+                catch { Interlocked.Increment(ref c.Errors); }
+
+                lock (c.Gate)
+                {
+                    if (!c.Stop && w.Depth < c.MaxDepth)
+                        for (int i = subs.Count - 1; i >= 0; i--) c.Stack.Push(new Work(subs[i], w.Depth + 1));
+                    c.Active--;
+                    Monitor.PulseAll(c.Gate);
+                }
+            }
+        }
+
+        static void Report(Ctx c, string dir)
+        {
+            int now = Environment.TickCount;
+            int last = c.LastReport;
+            if (unchecked(now - last) < 100) return;
+            if (Interlocked.CompareExchange(ref c.LastReport, now, last) != last) return;
+            c.State["Scanning"] = dir;
+            c.State["Scanned"] = (int)Interlocked.Read(ref c.Scanned);
+            c.State["Errors"] = c.Errors;
+            object cancel = c.State["Cancel"];
+            if (cancel is bool && (bool)cancel) { c.Cancelled = true; c.Stop = true; }
+        }
+
+        static void AddHit(Ctx c, string name, string path, string type, string parent)
+        {
+            lock (c.Gate)
+            {
+                if (c.Stop) return;
+                var h = new ScanHit();
+                h.Name = name; h.Path = path; h.Type = type; h.Parent = parent;
+                c.Results.Add(h);
+                if (c.Results.Count >= c.MaxResults) { c.State["Truncated"] = true; c.Stop = true; }
+            }
+        }
+
+        static void ScanDir(Ctx c, Work w, List<string> subs)
+        {
+            Report(c, w.Dir);
+            if (c.Stop) return;
+            string dir = w.Dir;
+            string bas = dir.EndsWith("\\") || dir.EndsWith("/") ? dir : dir + System.IO.Path.DirectorySeparatorChar;
+            string baseLower = c.Mode > 0 ? bas.ToLowerInvariant().Replace('/', '\\') : null;
+
+            var files = new List<string>();
+            if (!Enumerate(dir, subs, c.WantFile ? files : null)) { Interlocked.Increment(ref c.Errors); subs.Clear(); return; }
+
+            Interlocked.Add(ref c.Scanned, subs.Count + files.Count);
+            foreach (string nm in subs)
+            {
+                if (c.Stop) return;
+                if (!c.WantDir) continue;
+                if (c.HasKw && nm.IndexOf(c.Kw, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                if (!ZwHit(nm, baseLower, c)) continue;
+                AddHit(c, nm, bas + nm, c.TypeDir, dir);
+            }
+            for (int i = 0; i < subs.Count; i++) subs[i] = bas + subs[i];
+            if (c.Stop) return;
+
+            foreach (string nm in files)
+            {
+                if (c.Stop) return;
+                if (c.HasExt && !nm.EndsWith(c.Ext, StringComparison.OrdinalIgnoreCase)) continue;
+                if (c.HasKw && nm.IndexOf(c.Kw, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                if (!ZwHit(nm, baseLower, c)) continue;
+                AddHit(c, nm, bas + nm, c.TypeFile, dir);
+            }
+        }
+
+        // 與舊版 Test-Zw3dHit 相同的規則；path = baseLower + name（baseLower 以 \ 結尾）
+        static bool Has(string s, string v) { return s.IndexOf(v, StringComparison.Ordinal) >= 0; }
+
+        static bool ZwHit(string name, string baseLower, Ctx c)
+        {
+            int mode = c.Mode;
+            if (mode <= 0) return true;
+            string ext = "";
+            int dot = name.LastIndexOf('.');
+            if (dot >= 0) ext = name.Substring(dot).ToLowerInvariant();
+            string lower = name.ToLowerInvariant();
+            bool pathZw3d = Has(baseLower, "zw3d") || Has(lower, "zw3d");
+
+            if (c.Lang != null)
+            {
+                bool programFiles = Has(baseLower, "\\program files") || lower.StartsWith("program files", StringComparison.Ordinal);
+                bool languages = Has(baseLower, "\\languages\\");
+                if (!programFiles && !languages)
+                {
+                    bool related = pathZw3d || Has(baseLower, "zwsoft") || Has(lower, "zwsoft") ||
+                                   Junk.ContainsKey(ext) || Model.ContainsKey(ext);
+                    if (related && c.Lang.IsMatch(lower)) return true;
+                }
+            }
+
+            if (mode == 2)
+            {
+                if (Junk.ContainsKey(ext)) return true;
+                foreach (string k in NameKeys) if (Has(lower, k)) return true;
+                return false;
+            }
+            if (mode == 3)
+            {
+                if (Model.ContainsKey(ext)) return true;
+                if (Has(lower, "zw3d")) return true;
+                return false;
+            }
+            if (Junk.ContainsKey(ext)) return true;
+            if (Model.ContainsKey(ext)) return true;
+            foreach (string k in NameKeys) if (Has(lower, k)) return true;
+            if (pathZw3d) return true;
+            return false;
+        }
+
+#if PORTABLE_TEST
+        static bool Enumerate(string dir, List<string> dirs, List<string> files)
+        {
+            try
+            {
+                foreach (string d in Directory.EnumerateDirectories(dir)) dirs.Add(System.IO.Path.GetFileName(d));
+                if (files != null) foreach (string f in Directory.EnumerateFiles(dir)) files.Add(System.IO.Path.GetFileName(f));
+                return true;
+            }
+            catch { return false; }
+        }
+#else
+        // ---- Win32：FindFirstFileEx（Basic 資訊 + Large Fetch），一次讀出子資料夾與檔案；支援超過 260 字元的長路徑
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct WIN32_FIND_DATA
+        {
+            public uint dwFileAttributes;
+            public uint ftCreationLow, ftCreationHigh, ftAccessLow, ftAccessHigh, ftWriteLow, ftWriteHigh;
+            public uint nFileSizeHigh, nFileSizeLow, dwReserved0, dwReserved1;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string cFileName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 14)] public string cAlternateFileName;
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern IntPtr FindFirstFileExW(string lpFileName, int fInfoLevelId, out WIN32_FIND_DATA lpFindFileData,
+                                              int fSearchOp, IntPtr lpSearchFilter, int dwAdditionalFlags);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern bool FindNextFileW(IntPtr hFindFile, out WIN32_FIND_DATA lpFindFileData);
+        [DllImport("kernel32.dll")]
+        static extern bool FindClose(IntPtr hFindFile);
+
+        const int FindExInfoBasic = 1;
+        const int FIND_FIRST_EX_LARGE_FETCH = 2;
+        const uint FILE_ATTRIBUTE_DIRECTORY = 0x10;
+        static readonly IntPtr INVALID = new IntPtr(-1);
+
+        static string LongPath(string dir)
+        {
+            if (dir.StartsWith("\\\\?\\")) return dir;
+            if (dir.StartsWith("\\\\")) return "\\\\?\\UNC\\" + dir.Substring(2);
+            return "\\\\?\\" + dir;
+        }
+
+        static bool Enumerate(string dir, List<string> dirs, List<string> files)
+        {
+            string pattern = LongPath(dir.EndsWith("\\") ? dir : dir + "\\") + "*";
+            WIN32_FIND_DATA d;
+            IntPtr h = FindFirstFileExW(pattern, FindExInfoBasic, out d, 0, IntPtr.Zero, FIND_FIRST_EX_LARGE_FETCH);
+            if (h == INVALID) return false;
+            try
+            {
+                do
+                {
+                    string nm = d.cFileName;
+                    if (nm == "." || nm == "..") continue;
+                    if ((d.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) dirs.Add(nm);
+                    else if (files != null) files.Add(nm);
+                } while (FindNextFileW(h, out d));
+            }
+            finally { FindClose(h); }
+            return true;
+        }
+#endif
+    }
+}
+'@
+
+function Initialize-FastScan {
+    if ('FolderManager.FastScan' -as [type]) { return $true }
+    try { Add-Type -TypeDefinition $script:FastScanSrc -Language CSharp -ErrorAction Stop } catch { }
+    return [bool]('FolderManager.FastScan' -as [type])
+}
+
 $searchBlock = {
-    param($Roots, $Keyword, $TargetIndex, $MaxResults, $MaxDepth, $Zw3dMode, $ExtFilter, $State, $LangWords, $TypeFile, $TypeDir)
+    param($Roots, $Keyword, $TargetIndex, $MaxResults, $MaxDepth, $Zw3dMode, $ExtFilter, $State, $LangWords, $TypeFile, $TypeDir, $FastSrc)
+    # ---- 優先使用 C# 高速核心（第一次搜尋時若尚未編譯，於此背景執行緒編譯）
+    $fast = 'FolderManager.FastScan' -as [type]
+    if (-not $fast -and $FastSrc) {
+        try { Add-Type -TypeDefinition $FastSrc -Language CSharp -ErrorAction Stop } catch { }
+        $fast = 'FolderManager.FastScan' -as [type]
+    }
+    if ($fast) {
+        try {
+            $State.Engine = 'fast'
+            $fast::Run([object[]]@($Roots), [string]$Keyword, [int]$TargetIndex, [int]$MaxResults, [int]$MaxDepth,
+                       [int]$Zw3dMode, [string]$ExtFilter, $State, [object[]]@($LangWords), [string]$TypeFile, [string]$TypeDir)
+            $State.Done = $true
+            return
+        } catch {
+            $State.FastError = $_.Exception.Message      # 退回 PowerShell 版重新掃描
+            $State.Results = $null; $State.Truncated = $false; $State.Scanned = 0; $State.Errors = 0
+        }
+    }
+    $State.Engine = 'ps'
     $results = New-Object System.Collections.ArrayList
     $scanned = 0
     $errors = 0
@@ -2516,6 +2887,8 @@ function Complete-Search {
     $lblStatus.Text = $msg
     $lblScan.Text = ''
     Write-Log 'INFO' ((L 'Log.SearchEnd') -f $s.Keyword, $s.Target, $lvResults.Items.Count, $s.Scanned, $s.Errors)
+    if ($s.FastError) { Write-Log 'WARN' ('Fast scan failed, used PowerShell scan: ' + $s.FastError) }
+    Write-Log 'INFO' ('Search engine: {0}, {1:N1} s' -f $s.Engine, $(if ($script:SearchClock) { $script:SearchClock.Elapsed.TotalSeconds } else { 0 }))
     $script:State = $null
 }
 
@@ -2572,6 +2945,7 @@ $btnSearch.Add_Click({
         Done = $false; Cancel = $false; Scanning = ''; Scanned = 0; Errors = 0
         Results = $null; Truncated = $false; Keyword = $kw; Target = [string]$cboTarget.SelectedItem
     })
+    $script:SearchClock = [System.Diagnostics.Stopwatch]::StartNew()
     $script:Searching = $true
     $btnSearch.Enabled = $false
     $btnStop.Enabled = $true
@@ -2595,8 +2969,9 @@ $btnSearch.Add_Click({
         [void]$script:PS.AddArgument($extFilter)
         [void]$script:PS.AddArgument($script:State)
         [void]$script:PS.AddArgument(@(Get-LangWords $script:ScanLangId))
-        [void]$script:PS.AddArgument([string](L 'Type.File'))
-        [void]$script:PS.AddArgument([string](L 'Type.Folder'))
+        [void]$script:PS.AddArgument('File')      # 穩定值；顯示文字由 Complete-Search 依介面語言轉換
+        [void]$script:PS.AddArgument('Folder')
+        [void]$script:PS.AddArgument($script:FastScanSrc)
         $script:Handle = $script:PS.BeginInvoke()
         $script:Timer.Start()
     } catch {
@@ -2808,6 +3183,7 @@ function Set-Language {
     $script:ApplyingLang = $true
     try {
         foreach ($b in $script:UiBindings) { $b.C.Text = L $b.K }
+        $form.Text = (L 'AppTitle') + '  v' + $script:AppVersion
 
         $lvResults.Columns[0].Text = L 'Col.Name'
         $lvResults.Columns[1].Text = L 'Col.Type'
@@ -3570,10 +3946,14 @@ $form.Add_FormClosing({
 })
 
 Write-Log 'INFO' (L 'Log.Start')
+Write-Log 'INFO' ('zw3d_無用檔案清除程式 v' + $script:AppVersion)
 $lblStatus.Text = L 'Status.ReadyFull'
 
 if ($SelfTest) {
     [void]$form.CreateControl()
+    $fastOk = Initialize-FastScan
+    Write-Log 'INFO' ('SELFTEST0 fastScan={0}' -f $fastOk)
+    'SELFTEST0 fastScan={0}' -f $fastOk
     $line = 'SELFTEST controls={0} top={1} left={2} bottom={3} list={4} status={5} drives={6} recycle={7}' -f `
         $form.Controls.Count, $pnlTop.Bounds, $pnlLeft.Bounds, $pnlBottom.Bounds, $lvResults.Bounds, $status.Bounds, $clbDrives.Items.Count, $script:RecycleOk
     $line2 = 'SELFTEST2 topW={0} ext={1} extRight={2} hintRight={3} zwScope={4} ribbon={5} searchBtn={6} uiCbo={7} langCbo={8}' -f `
@@ -3611,7 +3991,7 @@ if ($SelfTest) {
             throw 'SELFTEST file mode / Type decoupling failed'
         }
         $got += 'Files=1'
-        $line4 = 'SELFTEST4 langScan={0}' -f ($got -join ',')
+        $line4 = 'SELFTEST4 langScan={0} engine={1}' -f ($got -join ','), $stF.Engine
         Write-Log 'INFO' $line4
         $line4
     } finally {
@@ -3622,7 +4002,7 @@ if ($SelfTest) {
     $origUi = $cboUi.SelectedIndex
     $origScan = $cboLang.SelectedIndex
     $scanBefore = $script:ScanLangId
-    $uiChecks = @{ 2 = 'ZW3D Files'; 13 = '文件管理工具'; 14 = '檔案管理工具' }
+    $uiChecks = @{ 2 = 'Junk File Cleaner'; 13 = '无用文件清除程序'; 14 = '無用檔案清除程式' }
     $switchLog = @()
     # 版面寬度基準：設計尺寸 1340 的視窗客戶區寬度。CI 執行器螢幕僅 1024 寬，Windows 會把視窗縮到螢幕內，
     # 若直接比 pnlTop.Width 會因螢幕大小誤判；控制項之間的重疊檢查不受影響。
@@ -3663,7 +4043,7 @@ if ($SelfTest) {
     # 逐一切換全部介面語言：視窗標題必須跟著換，版面不可重疊
     for ($i = 0; $i -lt $script:Langs.Count; $i++) {
         $cboUi.SelectedIndex = $i
-        if ($form.Text -ne (L 'AppTitle') -or $lblStatus.Text -eq '' -or $cboLang.Items[0] -ne (L 'Lang.All')) {
+        if ($form.Text -ne ((L 'AppTitle') + '  v' + $script:AppVersion) -or $lblStatus.Text -eq '' -or $cboLang.Items[0] -ne (L 'Lang.All')) {
             throw ('SELFTEST title/lang switch failed for {0}' -f $script:Langs[$i].Id)
         }
         if ($lblHint.Right -gt $lblUi.Left) { throw ('SELFTEST hint overlaps language label in {0}' -f $script:Langs[$i].Id) }
@@ -3890,5 +4270,36 @@ if ($SelfTest) {
     Flush-Log
     $form.Dispose()
 } else {
-    [void]$form.ShowDialog()
+    # 由 .cmd 以 start /min 啟動時，Windows 會把「最小化」套用到第一個視窗（主畫面）→ 顯示後強制還原並帶到前景
+    # 由 .cmd 啟動（主控台隱藏）時，Windows 前景鎖定會讓主畫面開在其他視窗後面／只在工作列閃爍，看起來像被縮小。
+    # 顯示後：還原為一般大小 → 暫時置頂推到最上層 → 取得焦點 → 取消置頂。
+    function Show-MainWindow {
+        if ($form.WindowState -eq 'Minimized') { $form.WindowState = 'Normal' }
+        $form.TopMost = $true
+        $form.BringToFront()
+        $form.Activate()
+        $form.TopMost = $false
+    }
+    $form.Add_Shown({
+        if ($script:Splash) { try { $script:Splash.Close(); $script:Splash.Dispose() } catch { }; $script:Splash = $null }
+        $form.WindowState = 'Normal'
+        Show-MainWindow
+        if ($script:ShowEvent) { [void]$script:ShowEvent.Set() }   # 0.3 秒後再推到最前面一次（第一次可能被前景鎖定擋下）
+    })
+    # 有人再點一次啟動檔 → 把既有視窗帶到最前面
+    if ($script:ShowEvent) {
+        $script:ShowTimer = New-Object System.Windows.Forms.Timer
+        $script:ShowTimer.Interval = 300
+        $script:ShowTimer.Add_Tick({ if ($script:ShowEvent.WaitOne(0)) { Show-MainWindow } })
+        $script:ShowTimer.Start()
+    }
+    # 背景預先編譯高速掃描核心，第一次按「搜尋」就不用等編譯
+    try {
+        $script:WarmPS = [powershell]::Create()
+        [void]$script:WarmPS.AddScript({ param($src) if (-not ('FolderManager.FastScan' -as [type])) { Add-Type -TypeDefinition $src -Language CSharp } }).AddArgument($script:FastScanSrc)
+        $script:WarmHandle = $script:WarmPS.BeginInvoke()
+    } catch { }
+    # 用 Application.Run 而非 ShowDialog：ShowDialog() 會把「目前作用中的視窗」（啟動畫面）設為擁有者，
+    # 啟動畫面一關閉就會連帶把主畫面關掉（日誌出現「啟動」後同一秒「程式關閉」）。
+    [System.Windows.Forms.Application]::Run($form)
 }
