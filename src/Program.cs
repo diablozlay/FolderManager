@@ -13,11 +13,11 @@ using System.Windows.Forms;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 
-[assembly: AssemblyTitle("檔案管理工具 Folder Manager")]
+[assembly: AssemblyTitle("ZW3D 無用檔案清除程式 (ZW3D Junk File Cleaner)")]
 [assembly: AssemblyDescription("ZW3D 檔案搜尋與清理工具（單檔可攜版）")]
-[assembly: AssemblyProduct("檔案管理工具")]
-[assembly: AssemblyVersion("1.5.2.0")]
-[assembly: AssemblyFileVersion("1.5.2.0")]
+[assembly: AssemblyProduct("ZW3D 無用檔案清除程式")]
+[assembly: AssemblyVersion("1.6.0.0")]
+[assembly: AssemblyFileVersion("1.6.0.0")]
 
 internal static class Program
 {
@@ -71,9 +71,10 @@ internal static class Program
                 LogText(baseDir, "runtime_errors.log", sb.ToString());
                 if (!selfTest)
                 {
+                    string[] t = HostText(baseDir);
                     MessageBox.Show(
-                        "執行期間發生錯誤，詳細內容已寫入 logs\\runtime_errors.log\n\n" + sb.ToString(),
-                        "檔案管理工具", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        t[1] + "\n\n" + sb.ToString(),
+                        t[0], MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
             return 0;
@@ -108,6 +109,48 @@ internal static class Program
         }
     }
 
+    // 啟動器彈窗文案：依 exe 同目錄 language.txt 的 ui= 介面語言（與腳本相同設定），預設繁中。
+    // 順序：{ 視窗標題, 執行期錯誤說明, 無法啟動, 記錄檔位置 }
+    private static readonly System.Collections.Generic.Dictionary<string, string[]> HostStrings =
+        new System.Collections.Generic.Dictionary<string, string[]>
+    {
+        { "zh_TW", new[] { "ZW3D 無用檔案清除程式", "執行期間發生錯誤，詳細內容已寫入 logs\\runtime_errors.log", "程式無法啟動：", "記錄檔位置：" } },
+        { "zh_CN", new[] { "ZW3D 无用文件清除程序", "运行期间发生错误，详细内容已写入 logs\\runtime_errors.log", "程序无法启动：", "日志位置：" } },
+        { "en_US", new[] { "ZW3D Junk File Cleaner", "An error occurred while running. Details were written to logs\\runtime_errors.log", "The application could not start:", "Log location:" } },
+        { "de_DE", new[] { "ZW3D Bereinigung unnötiger Dateien", "Während der Ausführung ist ein Fehler aufgetreten. Details stehen in logs\\runtime_errors.log", "Das Programm konnte nicht gestartet werden:", "Speicherort des Protokolls:" } },
+        { "fr_FR", new[] { "ZW3D Nettoyeur de fichiers inutiles", "Une erreur s'est produite pendant l'exécution. Détails dans logs\\runtime_errors.log", "Impossible de démarrer l'application :", "Emplacement du journal :" } },
+        { "es_ES", new[] { "ZW3D Limpiador de archivos innecesarios", "Se produjo un error durante la ejecución. Detalles en logs\\runtime_errors.log", "No se pudo iniciar la aplicación:", "Ubicación del registro:" } },
+        { "it_IT", new[] { "ZW3D Pulizia file inutili", "Si è verificato un errore durante l'esecuzione. Dettagli in logs\\runtime_errors.log", "Impossibile avviare l'applicazione:", "Posizione del log:" } },
+        { "pt_PT", new[] { "ZW3D Limpeza de ficheiros inúteis", "Ocorreu um erro durante a execução. Detalhes em logs\\runtime_errors.log", "Não foi possível iniciar a aplicação:", "Localização do registo:" } },
+        { "ja_JP", new[] { "ZW3D 不要ファイル削除ツール", "実行中にエラーが発生しました。詳細は logs\\runtime_errors.log に記録されています", "プログラムを起動できません：", "ログの場所：" } },
+        { "ko_KR", new[] { "ZW3D 불필요한 파일 정리 도구", "실행 중 오류가 발생했습니다. 자세한 내용은 logs\\runtime_errors.log에 기록되었습니다", "프로그램을 시작할 수 없습니다:", "로그 위치:" } },
+        { "ru_RU", new[] { "ZW3D Очистка ненужных файлов", "Во время работы произошла ошибка. Подробности записаны в logs\\runtime_errors.log", "Не удалось запустить программу:", "Расположение журнала:" } },
+        { "pl_PL", new[] { "ZW3D Czyszczenie zbędnych plików", "Podczas działania wystąpił błąd. Szczegóły zapisano w logs\\runtime_errors.log", "Nie można uruchomić programu:", "Lokalizacja dziennika:" } },
+        { "cs_CZ", new[] { "ZW3D Čištění nepotřebných souborů", "Během běhu došlo k chybě. Podrobnosti jsou v logs\\runtime_errors.log", "Program nelze spustit:", "Umístění protokolu:" } },
+        { "hu_HU", new[] { "ZW3D Felesleges fájlok törlése", "Futás közben hiba történt. A részletek: logs\\runtime_errors.log", "A program nem indítható:", "Napló helye:" } },
+        { "tr_TR", new[] { "ZW3D Gereksiz Dosya Temizleyici", "Çalışma sırasında bir hata oluştu. Ayrıntılar logs\\runtime_errors.log dosyasına yazıldı", "Program başlatılamadı:", "Günlük konumu:" } },
+    };
+
+    private static string[] HostText(string dir)
+    {
+        string id = "zh_TW";
+        try
+        {
+            string f = Path.Combine(dir ?? string.Empty, "language.txt");
+            if (File.Exists(f))
+            {
+                foreach (string raw in File.ReadAllLines(f))
+                {
+                    string ln = (raw ?? string.Empty).Trim();
+                    if (ln.StartsWith("ui=")) { id = ln.Substring(3).Trim(); break; }
+                }
+            }
+        }
+        catch { }
+        string[] t;
+        return HostStrings.TryGetValue(id, out t) ? t : HostStrings["zh_TW"];
+    }
+
     // 致命錯誤：寫 crash.log 並彈窗（彈窗失敗就靜默結束）
     private static void Fatal(string dir, string msg, bool quiet)
     {
@@ -115,8 +158,9 @@ internal static class Program
         if (quiet) return;
         try
         {
-            MessageBox.Show("程式無法啟動：\n\n" + msg + "\n\n記錄檔位置：\n" + dir,
-                "檔案管理工具", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            string[] t = HostText(dir);
+            MessageBox.Show(t[2] + "\n\n" + msg + "\n\n" + t[3] + "\n" + dir,
+                t[0], MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         catch { }
     }

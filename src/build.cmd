@@ -7,6 +7,9 @@ rem Output  : ..\檔案管理工具.exe  (single-file portable exe, icon embedde
 rem ============================================================================
 chcp 65001 >nul
 setlocal
+rem Python 輸出含中文路徑（圖示\、檔案管理工具.exe）；CI 主控台為 cp1252，強制 UTF-8 以免 UnicodeEncodeError
+set PYTHONUTF8=1
+set PYTHONIOENCODING=utf-8
 cd /d "%~dp0"
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set SMA=C:\Windows\Microsoft.NET\assembly\GAC_MSIL\System.Management.Automation\v4.0_3.0.0.0__31bf3856ad364e35\System.Management.Automation.dll
@@ -36,6 +39,9 @@ echo BUILD OK: %OUT%
 endlocal
 exit /b 0
 :fail
+rem 失敗時把日誌印到主控台，CI 才看得到 selftest 的錯誤原因
+for %%F in ("..\logs\crash.log" "..\logs\runtime_errors.log") do if exist %%F (echo ===== %%~nxF ===== & type %%F)
+for %%F in ("..\logs\operations_*.log") do (echo ===== %%~nxF ===== & type "%%~fF")
 echo BUILD FAILED
 endlocal
 exit /b 1
