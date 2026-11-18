@@ -1,0 +1,15 @@
+=== python ===
+C:\Users\asus\AppData\Local\Programs\Python\Python315\python.exe
+C:\Users\asus\AppData\Local\Microsoft\WindowsApps\python.exe
+Python 3.15.2
+13.0.0
+=== build.cmd === 
+[1/4] build icon (..\圖示\app.ico)
+wrote C:\Users\asus\Desktop\ZW3D檔案管理工具\src\..\圖示\app.ico 127866 bytes
+[2/4] compile ..\檔案管理工具.exe
+[3/4] inject icon
+ico frames: [(16, 16, 32), (24, 24, 32), (32, 32, 32), (48, 48, 32), (64, 64, 32), (128, 128, 32), (256, 256, 32)]
+icon injected -> ..\檔案管理工具.exe
+[4/4] selftest
+BUILD OK: ..\檔案管理工具.exe
+EXIT=0 

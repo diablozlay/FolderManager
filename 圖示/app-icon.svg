@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="256" height="256" role="img" aria-label="檔案管理工具">
+  <title>檔案管理工具</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1E285C"/><stop offset="1" stop-color="#0D112C"/></linearGradient>
+    <linearGradient id="fd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7EC6FF"/><stop offset="1" stop-color="#3490F0"/></linearGradient>
+    <radialGradient id="gl" cx="0.5" cy="0.45" r="0.4"><stop offset="0" stop-color="#4696FF" stop-opacity="0.5"/><stop offset="1" stop-color="#4696FF" stop-opacity="0"/></radialGradient>
+    <clipPath id="tc"><rect x="40" y="40" width="944" height="944" rx="210"/></clipPath>
+  </defs>
+  <rect x="40" y="40" width="944" height="944" rx="210" fill="url(#bg)"/>
+  <rect x="40" y="40" width="944" height="944" rx="210" fill="none" stroke="#4664C8" stroke-opacity="0.47" stroke-width="6"/>
+  <g clip-path="url(#tc)"><ellipse cx="500" cy="480" rx="420" ry="400" fill="url(#gl)"/></g>
+  <path d="M183.6,335.9 L183.6,696.9 L196.8,731.9 L231.8,751.6 L704.2,751.6 L739.2,731.9 L752.4,696.9 L752.4,401.6 L730.5,379.7 L454.9,379.7 L415.5,316.2 L218.6,316.2 L196.8,322.8Z M203.3,443.1 H732.7 A15.3,15.3 0 0 1 732.7,473.8 H203.3 A15.3,15.3 0 0 1 203.3,443.1Z" fill="url(#fd)" fill-rule="evenodd"/>
+  <g stroke-linecap="round">
+    <circle cx="640" cy="640" r="176" fill="#0E1330"/>
+    <line x1="746.1" y1="746.1" x2="880.4" y2="880.4" stroke="#0E1330" stroke-width="126"/>
+    <circle cx="640" cy="640" r="150" fill="#FFFFFF"/>
+    <line x1="746.1" y1="746.1" x2="880.4" y2="880.4" stroke="#FFFFFF" stroke-width="74"/>
+    <circle cx="640" cy="640" r="110" fill="#3E96F2"/>
+  </g>
+</svg>

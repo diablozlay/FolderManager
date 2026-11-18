@@ -1,0 +1,73 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 推 tag（v*）時需要建立 Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Pillow
+        run: pip install pillow
+
+      - name: Build exe (icon + csc + selftest)
+        shell: cmd
+        run: src\build.cmd
+
+      - name: Sign exe (only if certificate secrets exist)
+        shell: pwsh
+        env:
+          PFX_B64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+          PFX_PWD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrEmpty($env:PFX_B64)) {
+            Write-Host '::notice::No signing certificate configured (secrets CODESIGN_PFX_BASE64 / CODESIGN_PFX_PASSWORD); exe is left unsigned.'
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_B64))
+          try { & ./src/signing/sign.ps1 -Exe ./檔案管理工具.exe -Pfx $pfx -Password $env:PFX_PWD }
+          finally { Remove-Item $pfx -Force -ErrorAction SilentlyContinue }
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $m = Select-String -Path src/Program.cs -Pattern 'AssemblyVersion\("(\d+\.\d+\.\d+)'
+          $ver = $m.Matches[0].Groups[1].Value
+          $name = "FolderManager-v$ver-win64"
+          New-Item -ItemType Directory -Path "dist/$name" -Force | Out-Null
+          Copy-Item "檔案管理工具.exe","使用說明.txt","版本資訊.txt","建置與部署說明.txt" "dist/$name"
+          Copy-Item "圖示" "dist/$name/圖示" -Recurse
+          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
+          $h = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash
+          "$h  $name.zip" | Set-Content "dist/$name.zip.sha256" -Encoding ascii
+          "PKG=$name" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PKG }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+
+      - name: Publish GitHub Release (tag v* only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/*.sha256
+          generate_release_notes: true
