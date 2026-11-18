@@ -3624,6 +3624,9 @@ if ($SelfTest) {
     $scanBefore = $script:ScanLangId
     $uiChecks = @{ 2 = 'ZW3D Files'; 13 = '文件管理工具'; 14 = '檔案管理工具' }
     $switchLog = @()
+    # 版面寬度基準：設計尺寸 1340 的視窗客戶區寬度。CI 執行器螢幕僅 1024 寬，Windows 會把視窗縮到螢幕內，
+    # 若直接比 pnlTop.Width 會因螢幕大小誤判；控制項之間的重疊檢查不受影響。
+    $designTopW = [math]::Max($pnlTop.Width, 1340 - ($form.Width - $form.ClientSize.Width))
     foreach ($i in @(2, 13, 14)) {
         $cboUi.SelectedIndex = $i
         $id = $script:Langs[$i].Id
@@ -3634,9 +3637,9 @@ if ($SelfTest) {
         # 版面守門：第三列的提示、兩個標籤與兩個下拉不可互相重疊，也不可超出頂部工具列
         if ($lblHint.Right -gt $lblUi.Left -or $lblUi.Right -gt $cboUi.Left -or
             $cboUi.Right -gt $lblLang.Left -or $lblLang.Right -gt $cboLang.Left -or
-            $cboLang.Right -gt $pnlTop.Width) {
+            $cboLang.Right -gt $designTopW) {
             throw ('SELFTEST layout overlap in {0}: hint={1} uiLbl={2} uiCbo={3} scanLbl={4} scanCbo={5} topW={6}' -f `
-                $id, $lblHint.Right, $lblUi.Right, $cboUi.Right, $lblLang.Right, $cboLang.Right, $pnlTop.Width)
+                $id, $lblHint.Right, $lblUi.Right, $cboUi.Right, $lblLang.Right, $cboLang.Right, $designTopW)
         }
         $switchLog += ('ui={0}' -f $id)
     }
