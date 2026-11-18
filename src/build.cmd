@@ -7,6 +7,9 @@ rem Output  : ..\檔案管理工具.exe  (single-file portable exe, icon embedde
 rem ============================================================================
 chcp 65001 >nul
 setlocal
+rem Python 輸出含中文路徑（圖示\、檔案管理工具.exe）；CI 主控台為 cp1252，強制 UTF-8 以免 UnicodeEncodeError
+set PYTHONUTF8=1
+set PYTHONIOENCODING=utf-8
 cd /d "%~dp0"
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set SMA=C:\Windows\Microsoft.NET\assembly\GAC_MSIL\System.Management.Automation\v4.0_3.0.0.0__31bf3856ad364e35\System.Management.Automation.dll
